@@ -1,0 +1,34 @@
+name: s_stock
+description: "S-Stock - Application de gestion multi-magasins pour PC et Mobile"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icônes
+  cupertino_icons: ^1.0.6
+
+  # Stockage local persistant automatique (évite la réinitialisation à la fermeture)
+  shared_preferences: ^2.2.2
+
+  # Génération et impression des factures PDF personnalisées
+  pdf: ^3.10.4
+  printing: ^5.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Déclaration des assets si besoin
+  # assets:
+  #   - assets/images/

@@ -57,15 +57,48 @@ class ExpensesPage extends StatefulWidget {
 
 class _ExpensesPageState extends State<ExpensesPage> {
   String _searchQuery = '';
+  DateTime? _dateDebut;
+  DateTime? _dateFin;
 
-  double get _totalDepenses {
-    return widget.depenses.fold(0, (sum, item) => sum + item.montant);
+  Future<void> _selectionnerIntervalleDate(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2023),
+      lastDate: DateTime(2030),
+      initialDateRange: _dateDebut != null && _dateFin != null
+          ? DateTimeRange(start: _dateDebut!, end: _dateFin!)
+          : null,
+    );
+    if (picked != null) {
+      setState(() {
+        _dateDebut = picked.start;
+        _dateFin = picked.end;
+      });
+    }
   }
 
-  Future<void> _imprimerDepenses(List<Depense> depensesFiltrees) async {
-    final pdf = pw.Document();
-    double totalFiltre = depensesFiltrees.fold(0, (sum, d) => sum + d.montant);
+  List<Depense> get _depensesFiltrees {
+    return widget.depenses.where((d) {
+      bool correspondRecherche = d.motif.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          d.categorie.toLowerCase().contains(_searchQuery.toLowerCase());
+      
+      if (_dateDebut != null && _dateFin != null) {
+        final debut = DateTime(_dateDebut!.year, _dateDebut!.month, _dateDebut!.day);
+        final fin = DateTime(_dateFin!.year, _dateFin!.month, _dateFin!.day, 23, 59, 59);
+        bool correspondDate = d.date.isAfter(debut.subtract(const Duration(seconds: 1))) &&
+            d.date.isBefore(fin.add(const Duration(seconds: 1)));
+        return correspondRecherche && correspondDate;
+      }
+      return correspondRecherche;
+    }).toList();
+  }
 
+  double get _totalDepensesFiltrees {
+    return _depensesFiltrees.fold(0, (sum, item) => sum + item.montant);
+  }
+
+  Future<void> _imprimerDepenses() async {
+    final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -74,11 +107,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
           children: [
             pw.Text('ÉTAT DES DÉPENSES', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 5),
-            pw.Text('Total des Dépenses : $totalFiltre FCFA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.deepOrange)),
+            pw.Text('Total des Dépenses : $_totalDepensesFiltrees FCFA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.deepOrange)),
             pw.SizedBox(height: 15),
             pw.Table.fromTextArray(
               headers: ['Date', 'Motif / Description', 'Catégorie', 'Montant'],
-              data: depensesFiltrees.map((d) => [
+              data: _depensesFiltrees.map((d) => [
                 '${d.date.day}/${d.date.month}/${d.date.year}',
                 d.motif,
                 d.categorie,
@@ -102,7 +135,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
-          title: const Text('Enregistrer une Dépense'),
+          title: const Text('Enregistrer une Dépense (Session en cours)'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -132,7 +165,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     motif: motifController.text,
                     montant: montant,
                     categorie: categorieSelectionnee,
-                    date: DateTime.now(),
+                    date: DateTime.now(), // Date actuelle de la session
                   );
                   widget.onDepenseAjoutee(nouvelle);
                   setState(() {});
@@ -150,10 +183,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final depensesFiltrees = widget.depenses.where((d) {
-      return d.motif.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          d.categorie.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
+    String periodeTexte = (_dateDebut != null && _dateFin != null)
+        ? 'Du ${_dateDebut!.day}/${_dateDebut!.month}/${_dateDebut!.year} au ${_dateFin!.day}/${_dateFin!.month}/${_dateFin!.year}'
+        : 'Toutes les périodes';
 
     return Scaffold(
       appBar: AppBar(
@@ -164,7 +196,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
           IconButton(
             icon: const Icon(Icons.print, color: Colors.white),
             tooltip: 'Imprimer les dépenses',
-            onPressed: () => _imprimerDepenses(depensesFiltrees),
+            onPressed: _imprimerDepenses,
           ),
         ],
       ),
@@ -172,9 +204,29 @@ class _ExpensesPageState extends State<ExpensesPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            // Sélecteur de dates pour les dépenses
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text('Période : $periodeTexte', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                ElevatedButton.icon(
+                  onPressed: () => _selectionnerIntervalleDate(context),
+                  icon: const Icon(Icons.date_range, size: 16),
+                  label: const Text('Filtrer par date'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                ),
+                if (_dateDebut != null)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.red),
+                    onPressed: () => setState(() { _dateDebut = null; _dateFin = null; }),
+                    tooltip: 'Effacer filtre date',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.deepOrange.shade50,
                 borderRadius: BorderRadius.circular(16),
@@ -182,9 +234,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
               ),
               child: Column(
                 children: [
-                  const Text('Total des Dépenses', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  const Text('Total des Dépenses (Sélection)', style: TextStyle(fontSize: 14, color: Colors.grey)),
                   const SizedBox(height: 5),
-                  Text('$_totalDepenses FCFA', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                  Text('$_totalDepensesFiltrees FCFA', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
                 ],
               ),
             ),
@@ -201,12 +253,12 @@ class _ExpensesPageState extends State<ExpensesPage> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: depensesFiltrees.isEmpty
+              child: _depensesFiltrees.isEmpty
                   ? const Center(child: Text('Aucune dépense trouvée', style: TextStyle(color: Colors.grey)))
                   : ListView.builder(
-                      itemCount: depensesFiltrees.length,
+                      itemCount: _depensesFiltrees.length,
                       itemBuilder: (context, index) {
-                        final depense = depensesFiltrees.reversed.toList()[index];
+                        final depense = _depensesFiltrees.reversed.toList()[index];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
@@ -215,7 +267,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                               child: const Icon(Icons.receipt, color: Colors.deepOrange),
                             ),
                             title: Text(depense.motif, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('Catégorie : ${depense.categorie} | ${depense.date.day}/${depense.date.month}/${depense.date.year}'),
+                            subtitle: Text('Catégorie : ${depense.categorie} | Date : ${depense.date.day}/${depense.date.month}/${depense.date.year}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

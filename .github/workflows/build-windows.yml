@@ -30,5 +30,10 @@ jobs:
       - name: Archive Production Files
         uses: actions/upload-artifact@v4
         with:
+         - name: Archive Production Files
+        uses: actions/upload-artifact@v4
+        with:
           name: windows-release
-          path: build/windows/app/local/|build/windows/runner/Release/
+          path: |
+            build/windows/runner/Release/*.exe
+            build/windows/runner/Release/

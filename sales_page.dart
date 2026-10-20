@@ -82,8 +82,6 @@ class Vente {
   }
 }
 
-typedef VenteEnregistree = Vente;
-
 class SalesPage extends StatefulWidget {
   final List<Produit> produits;
   final List<Client> clients;
@@ -111,10 +109,11 @@ class SalesPage extends StatefulWidget {
 class _SalesPageState extends State<SalesPage> {
   final List<ArticleVendu> _panier = [];
   String _rechercheArticle = '';
-  String _rechercheClientPanier = ''; // Recherche rapide de client dans la caisse
+  
+  // Contrôleur pour la suggestion de clients (Autocomplete)
+  final TextEditingController _clientController = TextEditingController();
   Client? _clientSelectionne;
 
-  // Filtre manuel par intervalle de dates pour l'historique
   DateTime? _dateDebutHistorique;
   DateTime? _dateFinHistorique;
 
@@ -149,7 +148,6 @@ class _SalesPageState extends State<SalesPage> {
 
   Future<void> _imprimerFacture(Vente vente) async {
     final pdf = pw.Document();
-
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a5,
@@ -174,24 +172,12 @@ class _SalesPageState extends State<SalesPage> {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       mainAxisAlignment: pw.MainAxisAlignment.center,
                       children: [
-                        pw.Text(
-                          widget.magasin.nomMagasin,
-                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-                        ),
+                        pw.Text(widget.magasin.nomMagasin, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
                         pw.SizedBox(height: 2),
-                        pw.Text(
-                          'Magasin N° : ${widget.magasin.id}',
-                          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800),
-                        ),
-                        pw.Text(
-                          'Tél : ${widget.magasin.contact}',
-                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                        ),
+                        pw.Text('Magasin N° : ${widget.magasin.id}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
+                        pw.Text('Tél : ${widget.magasin.contact}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
                         pw.Spacer(),
-                        pw.Text(
-                          '[ Logo / Enseigne ]',
-                          style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
-                        ),
+                        pw.Text('[ Logo / Enseigne ]', style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500)),
                       ],
                     ),
                   ),
@@ -210,14 +196,8 @@ class _SalesPageState extends State<SalesPage> {
                 ],
               ),
               pw.SizedBox(height: 15),
-              pw.Center(
-                child: pw.Text(
-                  'LISTE DES ARTICLES',
-                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline),
-                ),
-              ),
+              pw.Center(child: pw.Text('LISTE DES ARTICLES', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline))),
               pw.SizedBox(height: 8),
-
               pw.Table.fromTextArray(
                 border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
                 headerAlignment: pw.Alignment.centerLeft,
@@ -234,7 +214,6 @@ class _SalesPageState extends State<SalesPage> {
                 }).toList(),
               ),
               pw.SizedBox(height: 15),
-
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -242,28 +221,17 @@ class _SalesPageState extends State<SalesPage> {
                   pw.Container(
                     width: 100,
                     height: 60,
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.black, style: pw.BorderStyle.dashed),
-                    ),
+                    decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black, style: pw.BorderStyle.dashed)),
                     alignment: pw.Alignment.center,
-                    child: pw.Text(
-                      'CACHET MAGASIN',
-                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-                    ),
+                    child: pw.Text('CACHET MAGASIN', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                   ),
                   pw.Container(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                      borderRadius: pw.BorderRadius.circular(4),
-                    ),
+                    decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black, width: 1.2), borderRadius: pw.BorderRadius.circular(4)),
                     child: pw.Row(
                       children: [
                         pw.Text('MONTANT NET : ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                        pw.Text(
-                          '${vente.total.toStringAsFixed(0)} FCFA',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.blue800),
-                        ),
+                        pw.Text('${vente.total.toStringAsFixed(0)} FCFA', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.blue800)),
                       ],
                     ),
                   ),
@@ -274,10 +242,7 @@ class _SalesPageState extends State<SalesPage> {
         },
       ),
     );
-
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
   }
 
   void _ajouterArticlePersonnalise(Produit p) {
@@ -287,7 +252,7 @@ class _SalesPageState extends State<SalesPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Ajouter : ${p.nom}'),
+        title: Text('Ajouter : ${p.nom} (Stock dispo: ${p.quantite})'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -302,6 +267,11 @@ class _SalesPageState extends State<SalesPage> {
               double prix = double.tryParse(prixController.text) ?? p.prixVente;
               int qte = int.tryParse(qteController.text) ?? 1;
               if (qte > 0) {
+                if (qte > p.quantite) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Attention : Quantité supérieure au stock disponible !'), backgroundColor: Colors.orange),
+                  );
+                }
                 setState(() {
                   _panier.add(ArticleVendu(produitId: p.id, nomProduit: p.nom, prixVente: prix, quantite: qte));
                 });
@@ -319,12 +289,6 @@ class _SalesPageState extends State<SalesPage> {
   Widget build(BuildContext context) {
     double totalPanier = _panier.fold(0, (sum, item) => sum + item.total);
     final produitsFiltres = widget.produits.where((p) => p.nom.toLowerCase().contains(_rechercheArticle.toLowerCase())).toList();
-
-    // Filtrage des clients pour la recherche dans le panneau latéral de vente
-    final clientsFiltresPanier = widget.clients.where((c) {
-      return c.nom.toLowerCase().contains(_rechercheClientPanier.toLowerCase()) ||
-          c.telephone.contains(_rechercheClientPanier);
-    }).toList();
 
     String periodeTexteHistorique = (_dateDebutHistorique != null && _dateFinHistorique != null)
         ? 'Du ${_dateDebutHistorique!.day}/${_dateDebutHistorique!.month}/${_dateDebutHistorique!.year} au ${_dateFinHistorique!.day}/${_dateFinHistorique!.month}/${_dateFinHistorique!.year}'
@@ -348,7 +312,6 @@ class _SalesPageState extends State<SalesPage> {
         ),
         body: TabBarView(
           children: [
-            // ONGLET 1 : CAISSE AVEC RECHERCHE ARTICLE ET RECHERCHE CLIENT
             Row(
               children: [
                 Expanded(
@@ -373,7 +336,9 @@ class _SalesPageState extends State<SalesPage> {
                           itemCount: produitsFiltres.length,
                           itemBuilder: (context, index) {
                             final p = produitsFiltres[index];
+                            bool enAlerte = p.quantite <= p.alerteQuantite;
                             return Card(
+                              color: enAlerte ? Colors.red.shade50 : Colors.white,
                               child: ListTile(
                                 title: Text(p.nom),
                                 subtitle: Text('Prix : ${p.prixVente} FCFA | Stock : ${p.quantite}'),
@@ -398,32 +363,55 @@ class _SalesPageState extends State<SalesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Client', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Client (Suggestions automatiques)', style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 5),
-                        // Champ de recherche pour faciliter la sélection du client
-                        TextField(
-                          onChanged: (val) => setState(() => _rechercheClientPanier = val),
-                          decoration: const InputDecoration(
-                            hintText: 'Rechercher client (nom/tél)...',
-                            prefixIcon: Icon(Icons.search, size: 18),
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        DropdownButton<Client>(
-                          isExpanded: true,
-                          hint: Text(_clientSelectionne?.nom ?? 'Client Divers'),
-                          value: _clientSelectionne,
-                          items: clientsFiltresPanier.map((c) => DropdownMenuItem(value: c, child: Text(c.nom))).toList(),
-                          onChanged: (c) => setState(() => _clientSelectionne = c),
+                        // Widget Autocomplete pour suggérer les clients dès la première lettre
+                        Autocomplete<Client>(
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text.isEmpty) {
+                              return const Iterable<Client>.empty();
+                            }
+                            return widget.clients.where((Client client) {
+                              return client.nom.toLowerCase().contains(textEditingValue.text.toLowerCase()) ||
+                                  client.telephone.contains(textEditingValue.text);
+                            });
+                          },
+                          displayStringForOption: (Client option) => option.nom,
+                          onSelected: (Client selection) {
+                            setState(() {
+                              _clientSelectionne = selection;
+                            });
+                          },
+                          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                            return TextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              decoration: InputDecoration(
+                                hintText: 'Entrez le nom ou téléphone...',
+                                prefixIcon: const Icon(Icons.search, size: 18),
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Colors.white,
+                                suffixIcon: _clientSelectionne != null
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setState(() {
+                                            _clientSelectionne = null;
+                                            controller.clear();
+                                          });
+                                        },
+                                      )
+                                    : null,
+                              ),
+                            );
+                          },
                         ),
                         if (_clientSelectionne != null)
-                          TextButton(
-                            onPressed: () => setState(() => _clientSelectionne = null),
-                            child: const Text('Retirer le client', style: TextStyle(fontSize: 12, color: Colors.red)),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text('Sélectionné : ${_clientSelectionne!.nom}', style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
                           ),
                         const Divider(),
                         const Text('Panier Actuel', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -451,6 +439,18 @@ class _SalesPageState extends State<SalesPage> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                             onPressed: _panier.isEmpty ? null : () {
+                              // DÉDUCTION AUTOMATIQUE DU STOCK INITIAL
+                              for (var item in _panier) {
+                                final produitAssocie = widget.produits.firstWhere(
+                                  (p) => p.id == item.produitId,
+                                  orElse: () => Produit(id: '', nom: '', categorie: '', prixAchat: 0, prixVente: 0, quantite: 0, alerteQuantite: 0),
+                                );
+                                if (produitAssocie.id.isNotEmpty) {
+                                  produitAssocie.quantite -= item.quantite;
+                                  if (produitAssocie.quantite < 0) produitAssocie.quantite = 0;
+                                }
+                              }
+
                               final nouvelleVente = Vente(
                                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                                 date: DateTime.now(),
@@ -469,7 +469,7 @@ class _SalesPageState extends State<SalesPage> {
                                 context: context,
                                 builder: (context) => AlertDialog(
                                   title: const Text('Vente validée !'),
-                                  content: const Text('Souhaitez-vous imprimer la facture ?'),
+                                  content: const Text('Le stock a été mis à jour. Souhaitez-vous imprimer la facture ?'),
                                   actions: [
                                     TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
                                     ElevatedButton(
@@ -489,11 +489,10 @@ class _SalesPageState extends State<SalesPage> {
                       ],
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            // ONGLET 2 : HISTORIQUE DES VENTES
+                ],
+              ),
+            ],
+            // HISTORIQUE
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(

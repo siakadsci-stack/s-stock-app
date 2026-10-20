@@ -22,7 +22,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows Release
-        run: flutter build windows --release
+        run: flutter build windows --release --target=main.dart
 
       - name: Archive Production Files
         uses: actions/upload-artifact@v4
